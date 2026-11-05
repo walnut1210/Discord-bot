@@ -1,6 +1,6 @@
 # Discord Bot
 
-Giveaway（抽選）とTicket（問い合わせ管理）を統合したDiscord Botです。起動ファイルは `bot.py` です。
+Giveaway（抽選）・Ticket（問い合わせ管理）・Role（リアクションロール）を統合したDiscord Botです。起動ファイルは `bot.py` です。
 
 ## 機能
 
@@ -11,6 +11,14 @@ Giveaway（抽選）とTicket（問い合わせ管理）を統合したDiscord B
 - 🎉リアクションで参加し、外すと辞退
 - 締切時に参加者を取得してランダム抽選
 - `data/giveaways.json` に保存し、再起動後に締切タイマーを復元
+
+### Role（リアクションロール）
+- `/role-panel-create`：ロール選択パネルを作成
+- `/role-panel-add`：パネルに絵文字とロールの組み合わせを登録
+- `/role-panel-remove`：登録済みの組み合わせを削除
+- リアクション追加でロール付与、削除でロール解除
+- Unicode絵文字・サーバー絵文字に対応
+- `data/reaction_roles.json` に設定を保存し、再起動後も復元
 
 ### Ticket
 - `/ticket-panel`：チケット作成パネルを設置
@@ -53,7 +61,7 @@ Bot TokenをGitHubへアップロードしないでください。
 ## Discord側の設定
 [Discord Developer Portal](https://discord.com/developers/applications) でBotを作成し、`bot` と `applications.commands` のScopeでサーバーに招待します。
 
-必要な権限：View Channels、Send Messages、Embed Links、Add Reactions、Read Message History、Manage Channels。Botのロールはモデレーターロールより上位に配置してください。
+必要な権限：View Channels、Send Messages、Embed Links、Add Reactions、Read Message History、Manage Channels、Manage Roles。Botのロールはモデレーターロールおよび付与対象ロールより上位に配置してください。
 
 Privileged Gateway Intents（Server Members、Message Content、Presence）は不要です。
 
@@ -69,9 +77,12 @@ python bot.py
 - `/giveaway reroll message_id:メッセージID`：終了済み抽選を再抽選
 - `/ticket-panel`
 - `/ticket-close`
+- `/role-panel-create channel:チャンネル title:タイトル description:説明`
+- `/role-panel-add message_id:メッセージID role:ロール emoji:絵文字`
+- `/role-panel-remove message_id:メッセージID emoji:絵文字`
 
 ## 保存データ
-Giveawayの情報は `data/giveaways.json` に保存されます。ホスティング環境では `data/` が再起動後も保持される永続ストレージを使用してください。チケットを閉じるとチャンネルは5秒後に削除されます。
+Giveawayの情報は `data/giveaways.json`、リアクションロールの設定は `data/reaction_roles.json` に保存されます。ホスティング環境では `data/` が再起動後も保持される永続ストレージを使用してください。チケットを閉じるとチャンネルは5秒後に削除されます。
 
 ## License
 [MIT License](LICENSE)
