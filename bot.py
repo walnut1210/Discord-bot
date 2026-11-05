@@ -116,6 +116,35 @@ class GiveawayGroup(app_commands.Group):
             log.exception("Giveaway creation failed")
             await interaction.followup.send("抽選の作成に失敗しました。Botの権限を確認してください。", ephemeral=True)
 
+    @app_commands.command(name="reroll", description="終了した抽選を再抽選します（過去の当選者は除外）")
+    @app_commands.guild_only()
+    async def reroll(self, interaction: discord.Interaction, message_id: str) -> None:
+        if not interaction.permissions.manage_guild:
+            await interaction.response.send_message("サーバー管理権限が必要です。", ephemeral=True)
+            return
+        message_id = message_id.strip()
+        if not re.fullmatch(r"\\d{17,20}", message_id):
+            await interaction.response.send_message("メッセージIDの形式が正しくありません。", ephemeral=True)
+            return
+        data = interaction.client.giveaways.get(message_id)
+        if not data or data.get("guild_id") != interaction.guild_id:
+            await interaction.response.send_message("このサーバーの抽選が見つかりません。", ephemeral=True)
+            return
+        if not data.get("ended"):
+            await interaction.response.send_message("開催中の抽選は再抽選できません。先に終了してください。", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True)
+        result = await interaction.client.reroll_giveaway(message_id)
+        if not result:
+            await interaction.followup.send("抽選メッセージを取得できませんでした。", ephemeral=True)
+        elif "error" in result:
+            await interaction.followup.send(result["error"], ephemeral=True)
+        else:
+            await interaction.followup.send(
+                f"再抽選が完了しました。再抽選: {result['reroll_count']} 回目 / 当選者: {len(result['winners'])} 人",
+                ephemeral=True,
+            )
+
     @app_commands.command(name="end", description="抽選を終了して当選者を決定します")
     @app_commands.guild_only()
     async def end(self, interaction: discord.Interaction, message_id: str) -> None:
@@ -268,6 +297,65 @@ class CombinedBot(commands.Bot):
     async def on_ready(self) -> None:
         log.info("Logged in as %s (%s)", self.user, self.user.id if self.user else "unknown")
 
+    async def reroll_giveaway(self, message_id: str) -> dict[str, Any] | None:
+        lock = self.giveaway_locks.setdefault(message_id, asyncio.Lock())
+        async with lock:
+            data = self.giveaways.get(message_id)
+            if not data or not data.get("ended"):
+                return None
+
+            try:
+                channel = self.get_channel(int(data["channel_id"])) or await self.fetch_channel(int(data["channel_id"]))
+            except discord.HTTPException:
+                return None
+            if not isinstance(channel, discord.TextChannel):
+                return None
+
+            try:
+                message = await channel.fetch_message(int(message_id))
+            except discord.HTTPException:
+                return None
+
+            reaction = next((r for r in message.reactions if str(r.emoji) == data["emoji"]), None)
+            if reaction is None:
+                return {"error": "参加リアクションが見つかりません。"}
+
+            entrants: dict[int, discord.User] = {}
+            try:
+                async for user in reaction.users(limit=None):
+                    if not user.bot:
+                        entrants[user.id] = user
+            except discord.HTTPException:
+                log.exception("Could not fetch giveaway participants for reroll")
+                return {"error": "参加者を取得できませんでした。Botの権限を確認してください。"}
+
+            history = set(data.get("winner_history", data.get("winner_ids", [])))
+            candidates = [user for user in entrants.values() if user.id not in history]
+            if not candidates:
+                return {"error": "過去の当選者を除外すると、再抽選できる参加者がいません。"}
+
+            random.SystemRandom().shuffle(candidates)
+            winners = candidates[:int(data["winner_count"])]
+            winner_ids = [user.id for user in winners]
+            data["winner_history"] = list(history.union(winner_ids))
+            data["winner_ids"] = winner_ids
+            data["reroll_count"] = int(data.get("reroll_count", 0)) + 1
+            data["last_rerolled_at"] = int(discord.utils.utcnow().timestamp())
+            save_giveaways(self.giveaways)
+
+            winner_text = ", ".join(user.mention for user in winners)
+            try:
+                await channel.send(
+                    f"🔄 **再抽選結果：{data['prize']}**（再抽選 {data['reroll_count']} 回目）\\n"
+                    f"当選者: {winner_text}\\n"
+                    f"※過去の当選者は再選出対象から除外しています。",
+                    allowed_mentions=discord.AllowedMentions(users=winners),
+                )
+            except discord.HTTPException:
+                log.exception("Could not send giveaway reroll result")
+                return {"error": "当選者は保存されましたが、結果メッセージを送信できませんでした。"}
+            return {"winners": winners, "remaining": len(candidates) - len(winners), "reroll_count": data["reroll_count"]}
+
     def schedule_giveaway(self, message_id: str) -> None:
         old = self.giveaway_tasks.get(message_id)
         if old and not old.done():
@@ -318,6 +406,7 @@ class CombinedBot(commands.Bot):
             data["ended"] = True
             data["ended_at"] = int(discord.utils.utcnow().timestamp())
             data["winner_ids"] = [user.id for user in winners]
+            data["winner_history"] = list(set(data.get("winner_history", [])) | set(data["winner_ids"]))
             save_giveaways(self.giveaways)
             if message is not None:
                 try:
