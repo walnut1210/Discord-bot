@@ -123,7 +123,7 @@ class GiveawayGroup(app_commands.Group):
             await interaction.response.send_message("サーバー管理権限が必要です。", ephemeral=True)
             return
         message_id = message_id.strip()
-        if not re.fullmatch(r"\\d{17,20}", message_id):
+        if not re.fullmatch(r"\d{17,20}", message_id):
             await interaction.response.send_message("メッセージIDの形式が正しくありません。", ephemeral=True)
             return
         data = interaction.client.giveaways.get(message_id)
