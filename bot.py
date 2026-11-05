@@ -283,6 +283,7 @@ class CombinedBot(commands.Bot):
     async def setup_hook(self) -> None:
         self.add_view(TicketView())
         self.add_view(CloseView())
+        await self.load_extension("cogs.role_reaction")
         self.tree.add_command(GiveawayGroup())
         if GUILD_ID:
             guild = discord.Object(id=GUILD_ID)
