@@ -7,6 +7,7 @@ Giveaway（抽選）とTicket（問い合わせ管理）を統合したDiscord B
 ### Giveaway
 - `/giveaway create`：リアクション参加型の抽選を作成
 - `/giveaway end`：抽選を手動終了
+- `/giveaway reroll`：終了済み抽選を再抽選（過去の当選者は除外）
 - 🎉リアクションで参加し、外すと辞退
 - 締切時に参加者を取得してランダム抽選
 - `data/giveaways.json` に保存し、再起動後に締切タイマーを復元
@@ -65,6 +66,7 @@ python bot.py
 ## コマンド
 - `/giveaway create prize:賞品名 duration:分 winners:人数 channel:チャンネル`
 - `/giveaway end message_id:メッセージID`
+- `/giveaway reroll message_id:メッセージID`：終了済み抽選を再抽選
 - `/ticket-panel`
 - `/ticket-close`
 
